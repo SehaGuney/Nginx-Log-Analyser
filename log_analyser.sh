@@ -1,45 +1,34 @@
 #!/usr/bin/env bash
+# Nginx access log analyser: prints the top 5 IPs, paths, status codes and user agents.
+set -eu
 
-# Kullanım kontrolü
 if [ $# -ne 1 ] || [ ! -f "$1" ]; then
-  echo "Kullanım: $0 <nginx_access_log>"
+  echo "Usage: $0 <nginx_access_log>" >&2
   exit 1
 fi
 
 LOG="$1"
 
-echo -e "\nTop 5 IP addresses with the most requests:"
-awk '{print $1}' "$LOG" \
-  | sort \
-  | uniq -c \
-  | sort -nr \
-  | head -n5 \
-  | awk '{print $2 " - " $1 " requests"}'
+# Reads values from stdin and prints the 5 most frequent as "<value> - <count> requests"
+top5() {
+  sort | uniq -c | sort -rn | head -n 5 |
+    awk '{ count = $1; $1 = ""; sub(/^ /, ""); print $0 " - " count " requests" }'
+}
 
-echo -e "\nTop 5 most requested paths:"
-awk '{print $7}' "$LOG" \
-  | sort \
-  | uniq -c \
-  | sort -nr \
-  | head -n5 \
-  | awk '{print $2 " - " $1 " requests"}'
+echo
+echo "Top 5 IP addresses with the most requests:"
+awk '{ print $1 }' "$LOG" | top5
 
-echo -e "\nTop 5 response status codes:"
-awk '{print $9}' "$LOG" \
-  | sort \
-  | uniq -c \
-  | sort -nr \
-  | head -n5 \
-  | awk '{print $2 " - " $1 " requests"}'
+echo
+echo "Top 5 most requested paths:"
+awk '{ print $7 }' "$LOG" | top5
 
-echo -e "\nTop 5 user agents:"
-# Combined log’da User‑Agent, çift tırnaklar arasında 6. alan
-awk -F'"' '{print $6}' "$LOG" \
-  | sort \
-  | uniq -c \
-  | sort -nr \
-  | head -n5 \
-  | sed 's/^[[:space:]]*//' \
-  | awk '{ ua=""; $1=""; for(i=2;i<=NF;i++) ua=ua $i " "; print ua " - " $1+0 " requests" }'
+echo
+echo "Top 5 response status codes:"
+awk '$9 ~ /^[0-9][0-9][0-9]$/ { print $9 }' "$LOG" | top5
+
+echo
+echo "Top 5 user agents:"
+awk -F'"' '{ print $6 }' "$LOG" | top5
 
 echo
